@@ -1,0 +1,75 @@
+# This is a file from a CareerFoundry project that shows use of multiple CTE. 
+# The section of code commented out at the end of the code would allow for a quick change for a different output option.
+
+WITH	
+	top10country_cte (country_id, country, number_of_customers) AS 
+
+	(SELECT	D.country_id,
+	 		D.country,
+			COUNT(A.customer_id) 
+	FROM	customer A
+		INNER JOIN address B ON A.address_id = B.address_id
+		INNER JOIN city C ON B.city_id = C.city_id
+		INNER JOIN country D ON C.country_id = D.country_id
+	GROUP BY D.country,
+	 		 D.country_id
+	ORDER BY COUNT(A.customer_id) DESC
+	LIMIT 10),
+
+	top10cities_cte (city, country, city_customers) AS
+		(SELECT	city,
+		 		country,
+				COUNT(A.customer_id)
+		FROM top10country_cte
+		 	LEFT JOIN city C ON top10country_cte.country_id = C.country_id
+			INNER JOIN address B ON C.city_id = B.city_id
+		 	INNER JOIN customer A ON B.address_id = A.address_id
+		GROUP BY	city,
+		 			country
+		ORDER BY	COUNT(A.customer_id) DESC
+		LIMIT 10),
+					
+
+top5cust_cte (customer_id, first_name, last_name, email, city, country, number_of_customers, total_amount_paid) AS
+		(SELECT	A.customer_id,
+		 		A.first_name,
+				A.last_name,
+				A.email,
+				C.city,
+				C.country,
+		 		D.number_of_customers,
+				SUM(E.amount)
+		FROM customer A
+			INNER JOIN address B ON A.address_id = B.address_id
+			INNER JOIN city Z ON Z.city_id = B.city_id
+		 	LEFT JOIN top10cities_cte C ON C.city = Z.city
+			INNER JOIN top10country_cte D ON C.country = D.country
+			INNER JOIN payment E ON A.customer_id = E.customer_id
+		GROUP BY A.customer_id,
+				 C.city,
+ 				 C.country,
+		 		 D.number_of_customers
+		ORDER BY	SUM(E.amount) DESC
+		LIMIT 5)
+
+/*SELECT	country,
+		number_of_customers,
+		COUNT(DISTINCT customer_id) AS top_cust_count
+FROM top5cust_cte
+GROUP BY 	country,
+			number_of_customers
+ORDER BY	top_cust_count DESC,
+			number_of_customers DESC*/
+
+SELECT *
+FROM top5cust_cte
+GROUP BY 	
+			total_amount_paid,
+			city,
+			customer_id,
+			country,
+			last_name,
+			first_name,
+			email,
+			number_of_customers
+ORDER BY total_amount_paid DESC	
