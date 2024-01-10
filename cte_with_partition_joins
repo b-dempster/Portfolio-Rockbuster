@@ -1,0 +1,66 @@
+# Use of CTEs with PARTITION and RANK()
+
+### This code was created as part of a CareerFoundry project to return the most popular genre(s) based on revenue from the top
+### ten countries based on revenue.   
+
+WITH co_gen_rev_cte AS 
+
+	(SELECT	DISTINCT 
+		CO.country,
+		CAT.name AS "genre",
+		SUM(PMT.amount) OVER (PARTITION BY CAT.name, CO.country) AS "revenue"
+		
+	FROM	country	CO
+		INNER JOIN city CT ON CO.country_id = CT.country_id
+		INNER JOIN address AD ON CT.city_id = AD.city_id
+		INNER JOIN customer CS ON AD.address_id = CS.address_id
+		INNER JOIN rental RN ON CS.customer_id = RN.customer_id
+		INNER JOIN payment PMT ON RN.rental_id = PMT.rental_id
+		INNER JOIN inventory INV ON RN.inventory_id = INV.inventory_id
+		INNER JOIN film FLM ON INV.film_id = FLM.film_id
+		INNER JOIN film_category FC ON FC.film_id = INV.film_id
+		INNER JOIN category CAT ON FC.category_id = CAT.category_id
+		
+	GROUP BY	CO.country,
+			CAT.name,
+			PMT.amount
+
+	ORDER BY	CO.country,
+			CAT.name),
+
+	top10country_cte (country_id, country, number_of_customers) AS 
+
+	(SELECT	D.country_id,
+	 		D.country,
+			COUNT(A.customer_id) 
+	FROM	customer A
+		INNER JOIN address B ON A.address_id = B.address_id
+		INNER JOIN city C ON B.city_id = C.city_id
+		INNER JOIN country D ON C.country_id = D.country_id
+	GROUP BY D.country,
+	 		 D.country_id
+	ORDER BY COUNT(A.customer_id) DESC
+	LIMIT 10),
+
+	mash_up (country,genre,revenue)	AS
+	
+	(SELECT A.country,
+			b.genre,
+			b.revenue
+	FROM
+			top10country_cte A
+			LEFT JOIN co_gen_rev_cte B ON A.country = B.country)
+
+SELECT	*
+
+FROM 
+	(SELECT	country,
+			genre,
+			revenue,
+			RANK() OVER (PARTITION BY country ORDER BY revenue DESC) hits 
+	FROM	mash_up)
+
+WHERE hits = 1
+
+ORDER BY	revenue DESC,
+			country
